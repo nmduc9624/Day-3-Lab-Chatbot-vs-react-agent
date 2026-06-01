@@ -1,7 +1,7 @@
 # Individual Report: Lab 3 - Chatbot Baseline and Agent v1
 
-- **Student Name**: [Member 1 Name]
-- **Student ID**: [Member 1 ID]
+- **Student Name**: Nguyễn Minh Đức
+- **Student ID**: 2A202600808
 - **Date**: 2026-06-01
 - **Role**: Chatbot baseline, initial tool design, Agent v1 testing, and failure trace collection
 
