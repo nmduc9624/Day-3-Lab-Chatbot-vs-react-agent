@@ -1,7 +1,7 @@
 # Group Report: Lab 3 - Chatbot vs ReAct Agent
 
-- **Team Name**: [Your Team Name]
-- **Team Members**: [Member 1, Member 2, Member 3]
+- **Team Name**: team-090
+- **Team Members**: Nguyễn Minh Đức, Nguyễn Đoàn Gia Tuấn
 - **Deployment Date**: 2026-06-01
 - **Primary Provider**: OpenAI
 - **Model Used**: `gpt-4o`
