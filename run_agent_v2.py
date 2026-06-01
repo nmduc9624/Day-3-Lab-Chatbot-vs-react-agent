@@ -1,12 +1,20 @@
-import os
+﻿import os
 from dotenv import load_dotenv
 from src.core.openai_provider import OpenAIProvider
+from src.agent.agent import ReActAgent
+from src.tools.ecommerce_tools import get_tools_v2
 
 load_dotenv()
 
 llm = OpenAIProvider(
     model_name=os.getenv("DEFAULT_MODEL", "gpt-4o"),
     api_key=os.getenv("OPENAI_API_KEY")
+)
+
+agent = ReActAgent(
+    llm=llm,
+    tools=get_tools_v2(),
+    max_steps=10
 )
 
 questions = [
@@ -17,28 +25,8 @@ questions = [
     "I want to buy 1 whiteboard using coupon OFFICE10 and ship to Hanoi. What is the total price?"
 ]
 
-total_tokens = 0
-total_latency = 0
-
 for i, question in enumerate(questions, start=1):
-    result = llm.generate(question)
-    usage = result.get("usage", {})
-    latency = result.get("latency_ms", 0)
-
-    total_tokens += usage.get("total_tokens", 0)
-    total_latency += latency
-
     print("=" * 80)
-    print(f"CHATBOT BASELINE CASE {i}")
+    print(f"AGENT V2 CASE {i}")
     print("Question:", question)
-    print("Answer:", result["content"])
-    print("Usage:", usage)
-    print("Latency:", latency, "ms")
-
-print("=" * 80)
-print("CHATBOT BASELINE SUMMARY")
-print("Total cases:", len(questions))
-print("Total tokens:", total_tokens)
-print("Average tokens per task:", round(total_tokens / len(questions), 2))
-print("Total latency:", total_latency, "ms")
-print("Average latency:", round(total_latency / len(questions), 2), "ms")
+    print("Answer:", agent.run(question))
