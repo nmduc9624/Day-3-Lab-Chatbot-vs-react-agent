@@ -1,82 +1,49 @@
-# Group Report: Lab 3 - Production-Grade Agentic System
-
-- **Team Name**: [Name]
-- **Team Members**: [Member 1, Member 2, ...]
-- **Deployment Date**: [YYYY-MM-DD]
-
----
-
 ## 1. Executive Summary
 
-*Brief overview of the agent's goal and success rate compared to the baseline chatbot.*
+In this lab, our team implemented and evaluated a ReAct Agent using OpenAI `gpt-4o`. The goal was to compare a normal chatbot baseline with an agentic system that can reason step by step and call tools.
 
-- **Success Rate**: [e.g., 85% on 20 test cases]
-- **Key Outcome**: [e.g., "Our agent solved 40% more multi-step queries than the chatbot baseline by correctly utilizing the Search tool."]
-
----
+The ReAct Agent achieved a 100% success rate on 3 test cases. Compared with the chatbot baseline, the agent produced more traceable and reliable answers because each reasoning step was connected to a tool call and an observation. The strongest improvement appeared in the refund policy question: the chatbot gave a generic answer, while the agent used `policy_lookup(refund)` and returned the exact policy.
 
 ## 2. System Architecture & Tooling
 
-### 2.1 ReAct Loop Implementation
-*Diagram or description of the Thought-Action-Observation loop.*
+The agent follows the ReAct loop:
 
-### 2.2 Tool Definitions (Inventory)
+Thought -> Action -> Observation -> Final Answer
+
+At each step, the LLM decides whether it needs to call a tool. If an action is detected, the system parses the tool name and arguments, executes the tool, logs the observation, and sends the updated scratchpad back to the LLM. The process stops when the model returns `Final Answer`.
+
 | Tool Name | Input Format | Use Case |
 | :--- | :--- | :--- |
-| `calc_tax` | `json` | Calculate VAT based on country code. |
-| `search_api` | `string` | Retrieve real-time information from Google Search. |
+| `calculator` | math expression string | Calculate tax, totals, and arithmetic expressions |
+| `policy_lookup` | policy topic string | Retrieve predefined company policy such as refund, shipping, or warranty |
 
-### 2.3 LLM Providers Used
-- **Primary**: [e.g., GPT-4o]
-- **Secondary (Backup)**: [e.g., Gemini 1.5 Flash]
-
----
+Primary provider: OpenAI  
+Model used: `gpt-4o`
 
 ## 3. Telemetry & Performance Dashboard
 
-*Analyze the industry metrics collected during the final test run.*
+The system logs structured JSON events including `AGENT_START`, `LLM_RESPONSE`, `TOOL_CALL`, and `AGENT_END`.
 
-- **Average Latency (P50)**: [e.g., 1200ms]
-- **Max Latency (P99)**: [e.g., 4500ms]
-- **Average Tokens per Task**: [e.g., 350 tokens]
-- **Total Cost of Test Suite**: [e.g., $0.05]
+Final run metrics:
 
----
+- Success Rate: 3/3 test cases
+- Average Agent Steps: 2.33 steps per task
+- Total Agent Tokens: 1527
+- Average Tokens per Agent Task: 509
+- Total Agent Latency: 6548 ms
+- Average Agent Latency: 2183 ms
+- Parser Errors: 0
+- Hallucinated Tool Calls: 0
+- Max-step Failures: 0
 
-## 4. Root Cause Analysis (RCA) - Failure Traces
+## 4. Root Cause Analysis / Failure Analysis
 
-*Deep dive into why the agent failed.*
+No parser error, hallucinated tool, or max-step failure occurred in the final run. However, the baseline chatbot exposed an important reliability limitation. For the question "What is the refund policy?", the chatbot could not access the company policy data and therefore gave a generic answer asking for more context.
 
-### Case Study: [e.g., Hallucinated Argument]
-- **Input**: "How much is the tax for 500 in Vietnam?"
-- **Observation**: Agent called `calc_tax(amount=500, region="Asia")` while the tool only accepts 2-letter country codes.
-- **Root Cause**: The system prompt lacked enough `Few-Shot` examples for the tool's strict argument format.
+Root cause: the chatbot has no external tool or data source. It can only rely on general language knowledge.
 
----
+Solution: the ReAct Agent was connected to `policy_lookup`, allowing it to retrieve a specific observation before producing the final answer.
 
-## 5. Ablation Studies & Experiments
+## 5. Chatbot vs Agent Insight
 
-### Experiment 1: Prompt v1 vs Prompt v2
-- **Diff**: [e.g., Adding "Always double check the tool arguments before calling".]
-- **Result**: Reduced invalid tool call errors by [e.g., 30%].
-
-### Experiment 2 (Bonus): Chatbot vs Agent
-| Case | Chatbot Result | Agent Result | Winner |
-| :--- | :--- | :--- | :--- |
-| Simple Q | Correct | Correct | Draw |
-| Multi-step | Hallucinated | Correct | **Agent** |
-
----
-
-## 6. Production Readiness Review
-
-*Considerations for taking this system to a real-world environment.*
-
-- **Security**: [e.g., Input sanitization for tool arguments.]
-- **Guardrails**: [e.g., Max 5 loops to prevent infinite billing cost.]
-- **Scaling**: [e.g., Transition to LangGraph for more complex branching.]
-
----
-
-> [!NOTE]
-> Submit this report by renaming it to `GROUP_REPORT_[TEAM_NAME].md` and placing it in this folder.
+The chatbot was faster to implement and worked well for simple arithmetic. However, its answers were not grounded in tool outputs. The ReAct Agent used more tokens because it needed system instructions, reasoning traces, observations, and multiple LLM calls. In return, it produced auditable traces and more reliable answers for tasks requiring calculation or data lookup.

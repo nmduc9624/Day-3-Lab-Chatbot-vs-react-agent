@@ -1,74 +1,113 @@
-import os
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from src.core.llm_provider import LLMProvider
 from src.telemetry.logger import logger
 
+
 class ReActAgent:
-    """
-    SKELETON: A ReAct-style Agent that follows the Thought-Action-Observation loop.
-    Students should implement the core loop logic and tool execution.
-    """
-    
     def __init__(self, llm: LLMProvider, tools: List[Dict[str, Any]], max_steps: int = 5):
         self.llm = llm
         self.tools = tools
         self.max_steps = max_steps
-        self.history = []
 
     def get_system_prompt(self) -> str:
-        """
-        TODO: Implement the system prompt that instructs the agent to follow ReAct.
-        Should include:
-        1.  Available tools and their descriptions.
-        2.  Format instructions: Thought, Action, Observation.
-        """
-        tool_descriptions = "\n".join([f"- {t['name']}: {t['description']}" for t in self.tools])
-        return f"""
-        You are an intelligent assistant. You have access to the following tools:
-        {tool_descriptions}
+        tool_descriptions = "\n".join(
+            [f"- {t['name']}: {t['description']}" for t in self.tools]
+        )
 
-        Use the following format:
-        Thought: your line of reasoning.
-        Action: tool_name(arguments)
-        Observation: result of the tool call.
-        ... (repeat Thought/Action/Observation if needed)
-        Final Answer: your final response.
-        """
+        return f"""
+You are a ReAct agent. You can reason step by step and use tools.
+
+Available tools:
+{tool_descriptions}
+
+Use exactly this format:
+
+Thought: explain what you need to do.
+Action: tool_name(argument)
+
+After receiving an Observation, continue reasoning.
+
+When you know the answer, respond with:
+
+Final Answer: your final answer.
+
+Rules:
+- Use tools when calculation or lookup is needed.
+- Do not invent tool names.
+- Use only one Action per step.
+"""
 
     def run(self, user_input: str) -> str:
-        """
-        TODO: Implement the ReAct loop logic.
-        1. Generate Thought + Action.
-        2. Parse Action and execute Tool.
-        3. Append Observation to prompt and repeat until Final Answer.
-        """
-        logger.log_event("AGENT_START", {"input": user_input, "model": self.llm.model_name})
-        
-        current_prompt = user_input
-        steps = 0
+        logger.log_event("AGENT_START", {
+            "input": user_input,
+            "model": self.llm.model_name
+        })
 
-        while steps < self.max_steps:
-            # TODO: Generate LLM response
-            # result = self.llm.generate(current_prompt, system_prompt=self.get_system_prompt())
-            
-            # TODO: Parse Thought/Action from result
-            
-            # TODO: If Action found -> Call tool -> Append Observation
-            
-            # TODO: If Final Answer found -> Break loop
-            
-            steps += 1
-            
-        logger.log_event("AGENT_END", {"steps": steps})
-        return "Not implemented. Fill in the TODOs!"
+        scratchpad = f"User question: {user_input}\n"
+        system_prompt = self.get_system_prompt()
+
+        for step in range(1, self.max_steps + 1):
+            result = self.llm.generate(scratchpad, system_prompt=system_prompt)
+            content = result["content"]
+
+            logger.log_event("LLM_RESPONSE", {
+                "step": step,
+                "content": content,
+                "usage": result.get("usage", {}),
+                "latency_ms": result.get("latency_ms")
+            })
+
+            if "Final Answer:" in content:
+                final_answer = content.split("Final Answer:", 1)[1].strip()
+                logger.log_event("AGENT_END", {
+                    "status": "success",
+                    "steps": step,
+                    "answer": final_answer
+                })
+                return final_answer
+
+            action_match = re.search(r"Action:\s*([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)", content)
+
+            if not action_match:
+                logger.log_event("PARSER_ERROR", {
+                    "step": step,
+                    "content": content
+                })
+                scratchpad += f"\nAssistant response:\n{content}\nObservation: Parser error. Use Action: tool_name(argument) or Final Answer.\n"
+                continue
+
+            tool_name = action_match.group(1)
+            args = action_match.group(2).strip().strip('"').strip("'")
+
+            observation = self._execute_tool(tool_name, args)
+
+            logger.log_event("TOOL_CALL", {
+                "step": step,
+                "tool": tool_name,
+                "args": args,
+                "observation": observation
+            })
+
+            scratchpad += f"""
+Assistant response:
+{content}
+Observation: {observation}
+"""
+
+        logger.log_event("AGENT_END", {
+            "status": "max_steps_exceeded",
+            "steps": self.max_steps
+        })
+
+        return "The agent could not finish within the maximum number of steps."
 
     def _execute_tool(self, tool_name: str, args: str) -> str:
-        """
-        Helper method to execute tools by name.
-        """
         for tool in self.tools:
-            if tool['name'] == tool_name:
-                # TODO: Implement dynamic function calling or simple if/else
-                return f"Result of {tool_name}"
+            if tool["name"] == tool_name:
+                try:
+                    return str(tool["func"](args))
+                except Exception as e:
+                    return f"Tool error: {e}"
+
         return f"Tool {tool_name} not found."

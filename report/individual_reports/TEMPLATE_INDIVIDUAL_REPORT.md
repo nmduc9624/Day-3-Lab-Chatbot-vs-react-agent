@@ -1,51 +1,47 @@
-# Individual Report: Lab 3 - Chatbot vs ReAct Agent
+## I. Technical Contribution
 
-- **Student Name**: [Your Name Here]
-- **Student ID**: [Your ID Here]
-- **Date**: [Date Here]
+I implemented the ReAct Agent loop in `src/agent/agent.py`. My contribution included action parsing, tool execution, observation feedback, max-step control, and structured telemetry logging.
 
----
+The agent supports the following workflow:
 
-## I. Technical Contribution (15 Points)
+1. Receive user input.
+2. Ask the LLM to produce a `Thought` and `Action`.
+3. Parse the action using a regular expression.
+4. Execute the selected tool.
+5. Append the tool result as an `Observation`.
+6. Continue until the LLM returns `Final Answer`.
 
-*Describe your specific contribution to the codebase (e.g., implemented a specific tool, fixed the parser, etc.).*
+I also created two tools for testing:
 
-- **Modules Implementated**: [e.g., `src/tools/search_tool.py`]
-- **Code Highlights**: [Copy snippets or link file lines]
-- **Documentation**: [Brief explanation of how your code interacts with the ReAct loop]
+- `calculator`: used for arithmetic and tax calculation.
+- `policy_lookup`: used to retrieve predefined company policy information.
 
----
+## II. Debugging Case Study
 
-## II. Debugging Case Study (10 Points)
+Problem: The chatbot baseline could not answer the refund policy question with specific information. It responded with a generic explanation and asked for more details about the company.
 
-*Analyze a specific failure event you encountered during the lab using the logging system.*
+Log evidence from the agent run showed that the ReAct Agent solved this limitation:
 
-- **Problem Description**: [e.g., Agent caught in an infinite loop with `Action: search(None)`]
-- **Log Source**: [Link or snippet from `logs/YYYY-MM-DD.log`]
-- **Diagnosis**: [Why did the LLM do this? Was it the prompt, the model, or the tool spec?]
-- **Solution**: [How did you fix it? (e.g., updated `Thought` examples in the system prompt)]
+`Action: policy_lookup(refund)`
 
----
+The observation returned:
 
-## III. Personal Insights: Chatbot vs ReAct (10 Points)
+`Customers can request a refund within 30 days if they provide a valid receipt.`
 
-*Reflect on the reasoning capability difference.*
+Diagnosis: The baseline chatbot had no access to company-specific data. This was not a model reasoning issue, but a missing tool/data access issue.
 
-1.  **Reasoning**: How did the `Thought` block help the agent compared to a direct Chatbot answer?
-2.  **Reliability**: In which cases did the Agent actually perform *worse* than the Chatbot?
-3.  **Observation**: How did the environment feedback (observations) influence the next steps?
+Solution: I added the `policy_lookup` tool and allowed the ReAct Agent to call it during the reasoning loop. This grounded the final answer in an explicit tool observation.
 
----
+## III. Personal Insights: Chatbot vs ReAct Agent
 
-## IV. Future Improvements (5 Points)
+The main difference I observed is that a chatbot answers directly, while a ReAct Agent can break the task into smaller steps. The `Thought` block helps the model decide what action is needed, and the `Observation` gives feedback from the environment before the final answer.
 
-*How would you scale this for a production-level AI agent system?*
+For simple arithmetic, both chatbot and agent can answer correctly. However, the agent is more transparent because the log shows exactly which tool was used and what result was returned.
 
-- **Scalability**: [e.g., Use an asynchronous queue for tool calls]
-- **Safety**: [e.g., Implement a 'Supervisor' LLM to audit the agent's actions]
-- **Performance**: [e.g., Vector DB for tool retrieval in a many-tool system]
+The agent can be worse than a chatbot when the task is very simple because it uses more tokens and may require multiple LLM calls. In this lab, the agent used 1527 total tokens while the chatbot used 412. This shows a trade-off between reliability and cost.
 
----
+## IV. Future Improvements
 
-> [!NOTE]
-> Submit this report by renaming it to `REPORT_[YOUR_NAME].md` and placing it in this folder.
+To scale this system toward production, I would add stronger guardrails for tool arguments, better JSON-based action parsing, and retry logic when the model produces an invalid format.
+
+For larger systems, I would connect the agent to a RAG pipeline with a vector database so it can retrieve real company documents instead of using a small dictionary. I would also add monitoring for cost, latency, success rate, parser errors, hallucinated tools, and max-step failures.
